@@ -114,9 +114,8 @@ class CustomerControllerTest {
     @Test
     void applyPromo_secondCode_replacesFirst() throws Exception {
         // 8,400 is above the free-delivery threshold, so the total is the subtotal; 15% = 1,260
-        String token = customerToken();
-        applyPromo(token, "SAVE10", 8400).andExpect(status().isOk());
-        applyPromo(token, "TREAT15", 8400)
+        applyPromo(customerToken(), "SAVE10", 8400).andExpect(status().isOk());
+        applyPromo(customerToken(), "TREAT15", 8400)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("TREAT15"))
                 .andExpect(jsonPath("$.deliveryPrice").value(0.0))
