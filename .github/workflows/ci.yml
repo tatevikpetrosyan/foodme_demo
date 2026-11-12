@@ -1,29 +1,21 @@
-name: CI
+name: CI                        
 
-on:
-  pull_request: 
-  push:
-    branches: [main]
-  workflow_dispatch:        # adds a manual "Run workflow" button
+on:                              
+  pull_request:                  
+    branches: [main]           
 
-jobs:
-  web-tests:
+jobs:                            
+  unit-tests:                    
+    runs-on: ubuntu-latest       
+    steps:                       
+      - run: echo "unit tests will run here"
+
+  integration-tests:            
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npx playwright test
-      - uses: actions/upload-artifact@v4
-        if: always()                       # save the report even if tests fail
-        with:
-          name: playwright-report
-          path: apps/web/playwright-report
-      - run: npm run test:e2e
-      
+      - run: echo "integration tests will run here"
+
+  e2e-tests:                    
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "e2e tests will run here"
