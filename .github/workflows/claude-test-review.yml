@@ -1,0 +1,59 @@
+name: Claude Test Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  test-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, so Claude can compare the PR with main
+
+      - name: Run Claude Test Review
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}   # lets Claude use the gh CLI to read the PR and post a comment
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowedTools "Read,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+          prompt: |
+            You are a senior QA engineer reviewing the TESTS in pull request #${{ github.event.pull_request.number }}
+            of ${{ github.repository }}. Do not review style or production code quality; focus only on testing.
+
+            Project layout:
+            - Backend: Java/Spring Boot in apps/backend, tests in apps/backend/src/test (JUnit, run with ./gradlew test)
+            - Web storefront: React/TypeScript in apps/web, E2E tests in apps/web/e2e (Playwright)
+            - Admin: apps/admin, E2E tests with Playwright
+
+            Steps:
+            1. Run `gh pr diff ${{ github.event.pull_request.number }}` to see what the PR changes.
+            2. List the production files that changed and the test files that changed or were added.
+            3. Read the relevant tests and the code they cover.
+
+            Review and answer:
+            - Coverage: which new or changed behaviour has tests, and which has NO tests? Check backend, web UI and admin separately.
+            - Missing cases: important positive, negative and edge cases that are not tested
+              (invalid input, boundaries, permissions/auth, empty states, error responses).
+            - Test quality: weak or missing assertions, tests that cannot fail, hard-coded waits (waitForTimeout, sleep),
+              .only/.skip left in, brittle selectors, tests depending on each other or on order, flaky patterns.
+            - E2E: does the user-facing flow of this feature have a Playwright test? If not, suggest the scenarios it should cover.
+
+            Output: post exactly ONE comment on the PR with `gh pr comment ${{ github.event.pull_request.number }} --body "..."`
+            in this format (Markdown):
+            ## Test review
+            **Verdict:** Good / Needs more tests / Tests have problems
+            ### What is covered
+            ### What is missing (most important first)
+            ### Problems in existing tests (file:line, what and why)
+            ### Suggested test cases (short list, ready to implement)
+            Keep it concise and specific to this PR. Do not change any files.
