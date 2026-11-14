@@ -2,6 +2,7 @@ import { apiClient } from "@/api/client";
 import type {
   ChefsPageDto,
   ChefTagOrderWithDishTagDto,
+  CreateRatingRequest,
   CustomerAuthDto,
   CustomerLoginRequest,
   CustomerProfile,
@@ -49,4 +50,7 @@ export const foodmeApi = {
 
   cancelOrder: (number: string) =>
     apiClient.post<FullOrderDto>(`/api/customer/orders/${number}/cancel`, undefined),
+
+  rateOrder: (number: string, payload: CreateRatingRequest) =>
+    apiClient.post<FullOrderDto>(`/api/customer/orders/${number}/rating`, payload),
 };

@@ -7,6 +7,7 @@ import {
     Grid,
     Chip,
     Divider,
+    Rating,
     Table,
     TableBody,
     TableCell,
@@ -163,6 +164,38 @@ const OrderDetails = () => {
                     <Typography variant="h6">Total</Typography>
                     <Typography variant="h6">{record.totalPrice} AMD</Typography>
                 </Stack>
+
+                {record.status === OrderStatus.DELIVERED && (
+                    <>
+                        <Divider sx={{ my: 2 }} />
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                            Customer review
+                        </Typography>
+                        {record.rating ? (
+                            <Box data-testid="customer-review">
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Rating
+                                        value={record.rating.stars}
+                                        readOnly
+                                        aria-label={`Rated ${record.rating.stars} out of 5`}
+                                    />
+                                    <Typography variant="body2">{record.rating.stars} / 5</Typography>
+                                </Stack>
+                                {record.rating.comment && (
+                                    // Plain text on purpose: customer input is never rendered as HTML.
+                                    <Typography sx={{ mt: 1, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                                        {record.rating.comment}
+                                    </Typography>
+                                )}
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                    {new Date(record.rating.createdAt).toLocaleString()}
+                                </Typography>
+                            </Box>
+                        ) : (
+                            <Typography color="text.secondary">No review yet</Typography>
+                        )}
+                    </>
+                )}
 
                 {availableTransitions.length > 0 && (
                     <>
