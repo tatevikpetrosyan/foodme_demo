@@ -186,6 +186,21 @@ export interface FullOrderDto {
   totalPrice: number;
   createdAt: string;
   cancellable: boolean;
+  /** True when this delivered order belongs to the signed-in customer and isn't rated yet. */
+  ratable: boolean;
+  /** Only returned to the order's owner. */
+  rating: OrderRatingDto | null;
+}
+
+export interface OrderRatingDto {
+  stars: number;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface CreateRatingRequest {
+  stars: number;
+  comment?: string;
 }
 
 export interface ApiError {
