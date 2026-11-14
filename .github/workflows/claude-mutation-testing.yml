@@ -1,0 +1,69 @@
+name: Claude Mutation Testing
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  mutation-testing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Prepare Gradle (build once so the tests run faster later)
+        run: |
+          chmod +x apps/backend/gradlew
+          ./apps/backend/gradlew -p apps/backend test
+
+      - name: Run Claude mutation testing
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--max-turns 80 --allowedTools "Read,Glob,Grep,Edit,Bash(./apps/backend/gradlew:*),Bash(git diff:*),Bash(git checkout:*),Bash(git status:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+          prompt: |
+            You are doing MUTATION TESTING for pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}.
+            Goal: find out whether the tests would catch bugs in the code this PR changed.
+            Work only inside this temporary CI checkout. Never commit or push.
+
+            Scope: backend Java code changed by the PR (apps/backend/src/main/**). Tests run with
+            `./apps/backend/gradlew -p apps/backend test` (you may add `--tests "<ClassName>"` to run only the relevant test class).
+
+            Steps:
+            1. Run `gh pr diff ${{ github.event.pull_request.number }}` and pick the changed backend business logic
+               (services, controllers, validation). Ignore DTO getters/setters and pure config.
+            2. Create 6 to 10 mutants, ONE AT A TIME. Each mutant is one small, realistic bug, for example:
+               flip a condition (> to >=, == to !=), remove a validation check, change a boundary number,
+               return null/empty instead of a value, delete a line that saves data, swap a status value.
+            3. For each mutant: apply it with Edit, run the relevant tests, record the result, then revert it with
+               `git checkout -- <file>` and confirm with `git status` that the file is clean before the next mutant.
+               - Tests fail  -> mutant KILLED (good, the tests caught the bug)
+               - Tests pass  -> mutant SURVIVED (bad, the tests missed the bug)
+               - Does not compile -> discard it and try another mutant
+            4. Make sure every mutant is reverted at the end.
+
+            Post exactly ONE comment with `gh pr comment ${{ github.event.pull_request.number }} --body "..."` in Markdown:
+            ## Mutation testing
+            **Mutation score:** killed / total (percent)
+            | # | File:line | Mutation | Result |
+            ### Survived mutants: tests to add
+            (for each survived mutant, a short description of the test that would catch it)
+            Keep it concise.
