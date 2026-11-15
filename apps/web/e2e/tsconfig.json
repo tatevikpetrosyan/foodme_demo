@@ -1,0 +1,15 @@
+{
+  // Type-checking for the Playwright e2e specs, so the editor knows Node globals
+  // such as process.env. Playwright compiles the specs itself; this file only
+  // serves the editor and `tsc -p e2e`. It is not part of the app build.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"]
+}
