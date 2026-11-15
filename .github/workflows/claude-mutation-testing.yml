@@ -5,9 +5,9 @@ on:
     types: [opened, synchronize, ready_for_review, reopened]
 
 jobs:
-  mutation-testing:
+  ui-mutation-testing:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: write
@@ -18,52 +18,100 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0   # full history, to compare the PR with its base branch
+
+      - name: Find UI test files that this PR adds or changes
+        id: specs
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          SPECS=$(git diff --name-only --diff-filter=AM "origin/$BASE_REF...HEAD" -- 'apps/web/e2e/*.spec.ts' \
+            | grep -v '/flake-' | sed 's#^apps/web/##' | tr '\n' ' ' || true)
+          echo "UI specs in this PR: ${SPECS:-none}"
+          echo "list=$SPECS" >> "$GITHUB_OUTPUT"
 
       - name: Set up Java 17
+        if: steps.specs.outputs.list != ''
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
           cache: gradle
 
-      - name: Prepare Gradle (build once so the tests run faster later)
+      - name: Set up Node 20
+        if: steps.specs.outputs.list != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Start the PR's backend (test profile = in-memory H2 + test seed data)
+        if: steps.specs.outputs.list != ''
         run: |
           chmod +x apps/backend/gradlew
-          ./apps/backend/gradlew -p apps/backend test
+          nohup ./apps/backend/gradlew -p apps/backend bootTestRun --args='--spring.profiles.active=test' > backend.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8081/actuator/health > /dev/null; then echo "Backend is up"; exit 0; fi
+            sleep 5
+          done
+          echo "Backend did not start:"; tail -100 backend.log; exit 1
 
-      - name: Run Claude mutation testing
+      - name: Install web dependencies and the test browser
+        if: steps.specs.outputs.list != ''
+        working-directory: apps/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Baseline - the UI tests must pass before any mutation
+        if: steps.specs.outputs.list != ''
+        working-directory: apps/web
+        run: npx playwright test ${{ steps.specs.outputs.list }} --retries=0
+
+      - name: Run Claude UI mutation testing
+        if: steps.specs.outputs.list != ''
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--max-turns 80 --allowedTools "Read,Glob,Grep,Edit,Bash(./apps/backend/gradlew:*),Bash(git diff:*),Bash(git checkout:*),Bash(git status:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+          claude_args: '--max-turns 80 --allowedTools "Read,Glob,Grep,Edit,Bash(apps/web/node_modules/.bin/playwright test:*),Bash(git diff:*),Bash(git checkout:*),Bash(git status:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
           prompt: |
-            You are doing MUTATION TESTING for pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}.
-            Goal: find out whether the tests would catch bugs in the code this PR changed.
+            You are doing UI MUTATION TESTING for pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}.
+            Goal: find out whether the PR's Playwright UI tests would catch bugs in the PR's storefront code.
             Work only inside this temporary CI checkout. Never commit or push.
 
-            Scope: backend Java code changed by the PR (apps/backend/src/main/**). Tests run with
-            `./apps/backend/gradlew -p apps/backend test` (you may add `--tests "<ClassName>"` to run only the relevant test class).
+            Setup that is already done: the PR's backend runs on http://localhost:8081 with test data, and the
+            UI tests below already passed once without mutations (baseline).
+            UI tests to run: ${{ steps.specs.outputs.list }} (paths relative to apps/web)
+            Run them from the repository root with exactly this command form:
+              apps/web/node_modules/.bin/playwright test --config apps/web/playwright.config.ts <spec files> --retries=0
+            Playwright starts a fresh storefront dev server on every run, so it always uses the current (mutated) code.
 
             Steps:
-            1. Run `gh pr diff ${{ github.event.pull_request.number }}` and pick the changed backend business logic
-               (services, controllers, validation). Ignore DTO getters/setters and pure config.
-            2. Create 6 to 10 mutants, ONE AT A TIME. Each mutant is one small, realistic bug, for example:
-               flip a condition (> to >=, == to !=), remove a validation check, change a boundary number,
-               return null/empty instead of a value, delete a line that saves data, swap a status value.
-            3. For each mutant: apply it with Edit, run the relevant tests, record the result, then revert it with
+            1. Run `gh pr diff ${{ github.event.pull_request.number }}` and read the UI tests. Pick the storefront code the PR
+               changed under apps/web/src that these tests exercise (components, pages, API calls). Ignore styling and types.
+            2. Create 6 to 8 mutants, ONE AT A TIME. Each mutant is one small, realistic UI bug, for example:
+               a button never shown (flip a condition), submit enabled with no selection, wrong value sent to the API
+               (e.g. stars - 1), success handler not closing the dialog, stars not replacing the button after success,
+               the wrong order number passed to the dialog, the error message not shown.
+            3. For each mutant: apply it with Edit, run the UI tests, record the result, then revert it with
                `git checkout -- <file>` and confirm with `git status` that the file is clean before the next mutant.
-               - Tests fail  -> mutant KILLED (good, the tests caught the bug)
-               - Tests pass  -> mutant SURVIVED (bad, the tests missed the bug)
-               - Does not compile -> discard it and try another mutant
+               - A test fails      -> mutant KILLED (good: the UI test caught the bug)
+               - All tests pass    -> mutant SURVIVED (bad: the UI test missed the bug)
+               - Does not compile  -> discard it and try another mutant
             4. Make sure every mutant is reverted at the end.
 
             Post exactly ONE comment with `gh pr comment ${{ github.event.pull_request.number }} --body "..."` in Markdown:
-            ## Mutation testing
+            ## UI mutation testing
             **Mutation score:** killed / total (percent)
-            | # | File:line | Mutation | Result |
-            ### Survived mutants: tests to add
-            (for each survived mutant, a short description of the test that would catch it)
+            **UI tests used:** the spec files
+            | # | File:line | Mutation | Result | Failing assertion (if killed) |
+            ### Survived mutants: what to add to the UI tests
+            (for each survived mutant, a short description of the assertion or test that would catch it)
             Keep it concise.
+
+      - name: Show backend log if something failed
+        if: failure() && steps.specs.outputs.list != ''
+        run: tail -100 backend.log || true
