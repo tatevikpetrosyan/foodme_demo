@@ -1,15 +1,18 @@
 package am.foodme.backend.controller.api;
 
+import am.foodme.backend.dto.CreateRatingDto;
 import am.foodme.backend.dto.CustomerProfileDto;
 import am.foodme.backend.dto.OrderDto;
 import am.foodme.backend.dto.OrderListResponseDto;
 import am.foodme.backend.service.CustomerAuthService;
 import am.foodme.backend.service.OrderService;
 import am.foodme.backend.utils.ControllerUtil;
+import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,5 +44,12 @@ public class CustomerController {
     @PostMapping("/orders/{number}/cancel")
     public OrderDto cancelOrder(@PathVariable String number, Authentication authentication) {
         return orderService.cancelOrder(number, authentication.getName());
+    }
+
+    @PostMapping("/orders/{number}/rating")
+    public OrderDto rateOrder(@PathVariable String number,
+                              @Valid @RequestBody CreateRatingDto request,
+                              Authentication authentication) {
+        return orderService.rateOrder(number, request, authentication.getName());
     }
 }

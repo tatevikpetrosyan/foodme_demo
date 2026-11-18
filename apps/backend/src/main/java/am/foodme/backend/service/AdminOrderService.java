@@ -2,10 +2,13 @@ package am.foodme.backend.service;
 
 import am.foodme.backend.dto.AdminListResponseDto;
 import am.foodme.backend.dto.OrderDto;
+import am.foodme.backend.dto.RatingDto;
 import am.foodme.backend.exceptionHandler.BadRequestException;
 import am.foodme.backend.exceptionHandler.NotFoundException;
 import am.foodme.backend.model.Order;
+import am.foodme.backend.model.Rating;
 import am.foodme.backend.repository.OrderRepository;
+import am.foodme.backend.repository.RatingRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -15,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,9 +30,11 @@ public class AdminOrderService {
     );
 
     private final OrderRepository orderRepository;
+    private final RatingRepository ratingRepository;
 
-    public AdminOrderService(OrderRepository orderRepository) {
+    public AdminOrderService(OrderRepository orderRepository, RatingRepository ratingRepository) {
         this.orderRepository = orderRepository;
+        this.ratingRepository = ratingRepository;
     }
 
     @Transactional(readOnly = true)
@@ -37,15 +43,26 @@ public class AdminOrderService {
         Page<Order> orderPage = (status == null || status.isBlank())
                 ? orderRepository.findAll(pageable)
                 : orderRepository.findByStatus(status, pageable);
+        List<Long> ids = orderPage.getContent().stream().map(Order::getId).toList();
+        Map<Long, Rating> ratings = ids.isEmpty() ? Map.of()
+                : ratingRepository.findByOrderIdIn(ids).stream()
+                        .collect(Collectors.toMap(r -> r.getOrder().getId(), Function.identity()));
         List<OrderDto> list = orderPage.getContent().stream()
-                .map(OrderDto::mapEntityToDto)
+                .map(order -> withRating(order, ratings.get(order.getId())))
                 .collect(Collectors.toList());
         return new AdminListResponseDto<>(list, orderPage.getTotalElements());
     }
 
     @Transactional(readOnly = true)
     public OrderDto getById(Long id) {
-        return OrderDto.mapEntityToDto(findEntity(id));
+        Order order = findEntity(id);
+        return withRating(order, ratingRepository.findByOrderId(id).orElse(null));
+    }
+
+    private OrderDto withRating(Order order, Rating rating) {
+        OrderDto dto = OrderDto.mapEntityToDto(order);
+        dto.setRating(RatingDto.mapEntityToDto(rating));
+        return dto;
     }
 
     @Transactional

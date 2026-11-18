@@ -35,6 +35,10 @@ public class OrderDto {
     private LocalDateTime createdAt;
     /** True only when the requesting customer owns this order and may still cancel it. */
     private boolean cancellable;
+    /** True only when the requesting customer owns this delivered order and hasn't rated it yet. */
+    private boolean ratable;
+    /** The customer's rating. Shown to the order's owner and to admins only. */
+    private RatingDto rating;
 
     public static OrderDto mapEntityToDto(Order entity) {
         if (entity == null) {

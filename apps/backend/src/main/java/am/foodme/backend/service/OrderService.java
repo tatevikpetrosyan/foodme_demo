@@ -2,11 +2,13 @@ package am.foodme.backend.service;
 
 import am.foodme.backend.dto.AddressDto;
 import am.foodme.backend.dto.CreateOrderDishDto;
+import am.foodme.backend.dto.CreateRatingDto;
 import am.foodme.backend.dto.DeliveryPriceRequestDto;
 import am.foodme.backend.dto.DeliveryPriceResponseDto;
 import am.foodme.backend.dto.OrderCreateResponseDto;
 import am.foodme.backend.dto.OrderDto;
 import am.foodme.backend.dto.OrderListResponseDto;
+import am.foodme.backend.dto.RatingDto;
 import am.foodme.backend.exceptionHandler.BadRequestException;
 import am.foodme.backend.exceptionHandler.NotFoundException;
 import am.foodme.backend.model.Address;
@@ -15,10 +17,12 @@ import am.foodme.backend.model.Customer;
 import am.foodme.backend.model.Dish;
 import am.foodme.backend.model.Order;
 import am.foodme.backend.model.OrderDish;
+import am.foodme.backend.model.Rating;
 import am.foodme.backend.repository.ChefRepository;
 import am.foodme.backend.repository.CustomerRepository;
 import am.foodme.backend.repository.DishRepository;
 import am.foodme.backend.repository.OrderRepository;
+import am.foodme.backend.repository.RatingRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
@@ -36,15 +43,17 @@ public class OrderService {
     private final ChefRepository chefRepository;
     private final DishRepository dishRepository;
     private final CustomerRepository customerRepository;
+    private final RatingRepository ratingRepository;
     private final MeterRegistry meterRegistry;
 
     public OrderService(OrderRepository orderRepository, ChefRepository chefRepository,
                          DishRepository dishRepository, CustomerRepository customerRepository,
-                         MeterRegistry meterRegistry) {
+                         RatingRepository ratingRepository, MeterRegistry meterRegistry) {
         this.orderRepository = orderRepository;
         this.chefRepository = chefRepository;
         this.dishRepository = dishRepository;
         this.customerRepository = customerRepository;
+        this.ratingRepository = ratingRepository;
         this.meterRegistry = meterRegistry;
     }
 
@@ -181,22 +190,77 @@ public class OrderService {
         return toDtoFor(orderRepository.save(order), customerEmail);
     }
 
+    @Transactional
+    public OrderDto rateOrder(String number, CreateRatingDto request, String customerEmail) {
+        // Same rules as cancel: someone else's order answers 404. Locking the
+        // order row turns a double-submit into "already reviewed", not a 500.
+        Order order = orderRepository.findByNumberForUpdate(number)
+                .filter(o -> isOwnedBy(o, customerEmail))
+                .orElseThrow(() -> new NotFoundException("Order " + number + " not found"));
+        if (!"DELIVERED".equals(order.getStatus())) {
+            throw new BadRequestException("Only delivered orders can be reviewed.");
+        }
+        if (ratingRepository.existsByOrderId(order.getId())) {
+            throw new BadRequestException("Order already reviewed.");
+        }
+
+        Chef chef = chefRepository.findByIdForUpdate(order.getChef().getId())
+                .orElseThrow(() -> new NotFoundException("Chef " + order.getChef().getId() + " not found"));
+
+        Rating rating = new Rating();
+        rating.setOrder(order);
+        rating.setCustomer(order.getCustomer());
+        rating.setChef(chef);
+        rating.setStars(request.getStars().intValueExact());
+        String comment = request.getComment() == null ? null : request.getComment().trim();
+        rating.setComment(comment == null || comment.isEmpty() ? null : comment);
+        rating.setCreatedAt(LocalDateTime.now());
+        ratingRepository.saveAndFlush(rating);
+
+        Double average = ratingRepository.averageStarsForChef(chef.getId());
+        chef.setRating(Math.round(average * 10) / 10.0);
+        chefRepository.save(chef);
+
+        meterRegistry.counter("foodme.ratings", "stars", String.valueOf(rating.getStars())).increment();
+
+        return toDtoFor(order, customerEmail, rating);
+    }
+
     @Transactional(readOnly = true)
     public OrderListResponseDto listForCustomer(String customerEmail, int page, int size) {
         Customer customer = customerRepository.findByEmail(customerEmail == null ? "" : customerEmail.trim().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Customer not found"));
         Page<Order> orders = orderRepository.findByCustomerIdOrderByCreatedAtDesc(
                 customer.getId(), PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50)));
+        Map<Long, Rating> ratings = ratingsByOrderId(orders.getContent());
         return new OrderListResponseDto(
-                orders.getContent().stream().map(order -> toDtoFor(order, customerEmail)).toList(),
+                orders.getContent().stream()
+                        .map(order -> toDtoFor(order, customerEmail, ratings.get(order.getId())))
+                        .toList(),
                 orders.getTotalElements()
         );
     }
 
     private OrderDto toDtoFor(Order order, String customerEmail) {
+        return toDtoFor(order, customerEmail, ratingRepository.findByOrderId(order.getId()).orElse(null));
+    }
+
+    private OrderDto toDtoFor(Order order, String customerEmail, Rating rating) {
         OrderDto dto = OrderDto.mapEntityToDto(order);
-        dto.setCancellable("NEW".equals(order.getStatus()) && isOwnedBy(order, customerEmail));
+        boolean owned = isOwnedBy(order, customerEmail);
+        dto.setCancellable("NEW".equals(order.getStatus()) && owned);
+        dto.setRatable("DELIVERED".equals(order.getStatus()) && owned && rating == null);
+        // The tracking page is public, so only the owner sees their own rating and comment.
+        dto.setRating(owned ? RatingDto.mapEntityToDto(rating) : null);
         return dto;
+    }
+
+    private Map<Long, Rating> ratingsByOrderId(List<Order> orders) {
+        if (orders.isEmpty()) {
+            return Map.of();
+        }
+        return ratingRepository.findByOrderIdIn(orders.stream().map(Order::getId).toList()).stream()
+                .collect(Collectors.toMap(r -> r.getOrder().getId(), Function.identity()));
     }
 
     private boolean isOwnedBy(Order order, String customerEmail) {

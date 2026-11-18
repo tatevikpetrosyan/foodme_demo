@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChefHat, Package, Truck, X } from "lucide-react";
+import { Check, ChefHat, Package, Star, Truck, X } from "lucide-react";
 import { foodmeApi } from "@/api/foodme";
+import { RateOrderDialog, StarRatingDisplay } from "@/components/sections/order-rating";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -60,6 +61,7 @@ export default function Tracking() {
 
   const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [rateOpen, setRateOpen] = useState(false);
   const cancelOrder = useMutation({
     mutationFn: () => foodmeApi.cancelOrder(number as string),
     onSuccess: (updated) => {
@@ -213,6 +215,26 @@ export default function Tracking() {
                   </Button>
                 </div>
               )}
+              {(data.rating || data.ratable) && (
+                <div className="mt-6 border-t border-zinc-100 pt-5 text-center">
+                  {data.rating ? (
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-800">Your rating</p>
+                      <StarRatingDisplay stars={data.rating.stars} size={22} className="mt-2" />
+                      {data.rating.comment && (
+                        <p className="mx-auto mt-2 max-w-sm whitespace-pre-line break-words text-sm leading-relaxed text-zinc-500">
+                          “{data.rating.comment}”
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <Button className="rounded-full" onClick={() => setRateOpen(true)}>
+                      <Star size={16} strokeWidth={2} aria-hidden="true" />
+                      Rate order
+                    </Button>
+                  )}
+                </div>
+              )}
               {cancelOrder.isError && (
                 <p role="alert" className="mt-4 text-center text-sm text-red-700">
                   {cancelOrder.error.message}
@@ -256,6 +278,10 @@ export default function Tracking() {
         </div>
       </div>
       </div>
+
+      {rateOpen && (
+        <RateOrderDialog orderNumber={data.number} open onOpenChange={setRateOpen} />
+      )}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="max-w-sm p-6">
