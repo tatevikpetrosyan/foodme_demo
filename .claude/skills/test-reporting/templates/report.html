@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STLC run report</title>
+<!--
+  Template for runs/<T>/report.html (step 10, test-reporting skill).
+  Don't edit per run. The skill copies this file and puts every run file in place of
+  the marker comment below the main element, each as a text/plain script with data-file="<path in the run dir>".
+  Everything on the page is rendered from those embedded files.
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e2dd;
+  --accent: #2f5bd3; --pass: #1f7a3f; --pass-bg: #e3f3e8; --fail: #b3261e; --fail-bg: #fbe5e3;
+  --warn: #8a5a00; --warn-bg: #fdf0d2; --idle: #5c5c58; --idle-bg: #ecebe6; --code-bg: #f1f0ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151514; --panel: #1e1e1c; --text: #ecebe6; --muted: #a09f99; --line: #33332f;
+    --accent: #8aa8ff; --pass: #7fd39a; --pass-bg: #1d3325; --fail: #ff9b92; --fail-bg: #3b1f1d;
+    --warn: #f0c46a; --warn-bg: #3a2e14; --idle: #b8b7b1; --idle-bg: #2b2b28; --code-bg: #262624;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151514; --panel: #1e1e1c; --text: #ecebe6; --muted: #a09f99; --line: #33332f;
+  --accent: #8aa8ff; --pass: #7fd39a; --pass-bg: #1d3325; --fail: #ff9b92; --fail-bg: #3b1f1d;
+  --warn: #f0c46a; --warn-bg: #3a2e14; --idle: #b8b7b1; --idle-bg: #2b2b28; --code-bg: #262624;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { padding: 20px 16px 0; max-width: 1200px; margin: 0 auto; }
+header h1 { margin: 0 0 4px; font-size: 22px; }
+header .meta { color: var(--muted); font-size: 13px; word-break: break-word; }
+header .meta a { color: var(--accent); }
+nav { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); margin-top: 14px; }
+nav .tabs { max-width: 1200px; margin: 0 auto; padding: 0 16px; display: flex; gap: 2px; overflow-x: auto; }
+nav button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 10px 12px; font: inherit; cursor: pointer; white-space: nowrap; }
+nav button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+nav button .count { font-size: 11px; color: var(--muted); margin-left: 4px; }
+main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+section[role="tabpanel"] { display: none; }
+section[role="tabpanel"].active { display: block; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; overflow-x: auto; }
+.panel > h2:first-child, .panel > h3:first-child { margin-top: 0; }
+h2 { font-size: 17px; } h3 { font-size: 15px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.kpi .v { font-size: 22px; font-weight: 650; }
+.kpi .l { color: var(--muted); font-size: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+td > code:first-child { white-space: nowrap; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--code-bg); }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.b-pass { color: var(--pass); background: var(--pass-bg); }
+.b-fail { color: var(--fail); background: var(--fail-bg); }
+.b-warn { color: var(--warn); background: var(--warn-bg); }
+.b-idle { color: var(--idle); background: var(--idle-bg); }
+.muted { color: var(--muted); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+pre { background: var(--code-bg); padding: 10px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; margin: 6px 0; }
+.md table { width: auto; max-width: 100%; }
+.md pre code { background: none; }
+.md :not(pre) > code { background: var(--code-bg); padding: 0 4px; border-radius: 4px; }
+details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-bottom: 10px; }
+details > summary { padding: 10px 14px; cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "▸"; color: var(--muted); }
+details[open] > summary::before { content: "▾"; }
+details > .body { padding: 0 14px 14px; overflow-x: auto; }
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0; }
+dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; word-break: break-word; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.step { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 120px; flex: 1; background: var(--panel); }
+.step .n { font-size: 12px; color: var(--muted); }
+.banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; background: var(--warn-bg); color: var(--warn); }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.toolbar input, .toolbar select { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); }
+.theme { position: absolute; top: 16px; right: 16px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; }
+@media (max-width: 640px) { dl.kv { grid-template-columns: 1fr; } dl.kv dt { margin-top: 6px; } }
+</style>
+</head>
+<body>
+<button class="theme" id="theme" type="button">Theme</button>
+<header>
+  <h1 id="title">STLC run report</h1>
+  <div class="meta" id="meta"></div>
+</header>
+<nav><div class="tabs" role="tablist" id="tabs"></div></nav>
+<main id="main"></main>
+
+<!-- @@RUN_FILES@@ -->
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- embedded files ----------
+  const FILES = {};
+  document.querySelectorAll('script[type="text/plain"][data-file]').forEach(function (el) {
+    // the skill escapes the closing-script and comment-open sequences so embedded text cannot end the block
+    FILES[el.dataset.file] = el.textContent.replace(/<\\\/script/gi, "<" + "/script").replace(/<\\!--/g, "<" + "!--").replace(/^\n/, "");
+  });
+  const libsOk = typeof jsyaml !== "undefined" && typeof marked !== "undefined" && typeof DOMPurify !== "undefined";
+
+  function parseYaml(name) {
+    if (!(name in FILES) || !libsOk) return null;
+    try { return jsyaml.load(FILES[name]) || {}; } catch (e) { return { __error: String(e) }; }
+  }
+  function parseJson(name) {
+    if (!(name in FILES)) return null;
+    try { return JSON.parse(FILES[name]); } catch (e) { return { __error: String(e) }; }
+  }
+
+  const spec = parseYaml("spec.yaml") || {};
+  const gates = parseYaml("gates.yaml") || {};
+  const results = parseJson("results.json");
+  const issuesDoc = parseJson("found_issues.json");
+  const verdictFiles = Object.keys(FILES).filter(function (f) { return /^verdicts\/.+\.json$/.test(f); }).sort();
+  const cases = Array.isArray(spec.test_cases) ? spec.test_cases : [];
+  const acs = Array.isArray(spec.acs) ? spec.acs : [];
+
+  // ---------- helpers ----------
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function md(text) {
+    if (!libsOk) return "<pre>" + esc(text) + "</pre>";
+    return '<div class="md">' + DOMPurify.sanitize(marked.parse(String(text || ""))) + "</div>";
+  }
+  function stripAnsi(s) { return String(s || "").replace(/\u001b\[[0-9;]*m/g, ""); }
+  function slug(s) { return String(s).toLowerCase().trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-"); }
+  function badge(text, kind) { return '<span class="badge b-' + kind + '">' + esc(text) + "</span>"; }
+  function kindOf(v) {
+    v = String(v == null ? "" : v).toLowerCase();
+    if (["pass", "passed", "match", "true", "approved", "sure", "filed", "expected", "automated"].indexOf(v) >= 0) return "pass";
+    if (["fail", "failed", "mismatch", "false", "rejected", "timedout", "unexpected", "interrupted"].indexOf(v) >= 0) return "fail";
+    if (["unsure", "blocked", "proposed", "flaky", "skipped", "pending"].indexOf(v) >= 0) return "warn";
+    return "idle";
+  }
+  function auto(v) { return v == null || v === "" ? badge("—", "idle") : badge(v, kindOf(v)); }
+  function list(arr) { return (arr || []).map(function (x) { return "<code>" + esc(x) + "</code>"; }).join(" "); }
+  function kv(obj) {
+    return '<dl class="kv">' + Object.keys(obj || {}).map(function (k) {
+      const v = obj[k];
+      const val = v !== null && typeof v === "object" ? "<pre>" + esc(libsOk ? jsyaml.dump(v) : JSON.stringify(v, null, 2)) + "</pre>" : esc(v);
+      return "<dt>" + esc(k) + "</dt><dd>" + val + "</dd>";
+    }).join("") + "</dl>";
+  }
+  function table(head, rows) {
+    return "<table><thead><tr>" + head.map(function (h) { return "<th>" + h + "</th>"; }).join("") +
+      "</tr></thead><tbody>" + (rows.length ? rows.join("") : '<tr><td colspan="' + head.length + '" class="muted">None</td></tr>') + "</tbody></table>";
+  }
+  function fmtMs(ms) { return ms == null ? "" : (ms / 1000).toFixed(1) + " s"; }
+
+  // ---------- execution.md sections (## <case id>) ----------
+  const execSections = {};
+  if (FILES["execution.md"]) {
+    FILES["execution.md"].split(/^(?=## )/m).forEach(function (chunk) {
+      const m = chunk.match(/^## (.+)$/m);
+      if (m && chunk.indexOf("## ") === 0) execSections[slug(m[1])] = chunk;
+    });
+  }
+
+  // ---------- results.json (Playwright JSON reporter) ----------
+  const tests = [];
+  (function walk(suites, path) {
+    (suites || []).forEach(function (s) {
+      const p = path.concat(s.title ? [s.title] : []);
+      (s.specs || []).forEach(function (sp) {
+        (sp.tests || []).forEach(function (t) {
+          const rs = t.results || [];
+          const last = rs[rs.length - 1] || {};
+          tests.push({
+            title: sp.title, file: sp.file, line: sp.line, project: t.projectName,
+            status: last.status || (t.status === "skipped" ? "skipped" : "not run"),
+            outcome: t.status, duration: last.duration, startTime: last.startTime, retries: rs.length - 1,
+            error: stripAnsi((last.error && (last.error.message || last.error.value)) || ""),
+            location: last.errorLocation, attachments: last.attachments || [], suite: p.join(" › ")
+          });
+        });
+      });
+      walk(s.suites, p);
+    });
+  })(results && results.suites, []);
+  const testsByTitle = {};
+  tests.forEach(function (t) { (testsByTitle[t.title] = testsByTitle[t.title] || []).push(t); });
+
+  function manualResult(c) {
+    const e = c.execution || {};
+    if (e.human_check && e.human_check.result) return e.human_check.result;
+    return e.result;
+  }
+  function automationOf(c) {
+    const t = c.spec ? testsByTitle[c.spec] : null;
+    if (!c.spec) return { state: c.status === "blocked" ? "blocked" : "not automated", kind: c.status === "blocked" ? "warn" : "idle", test: null };
+    if (!t) return { state: "automated · not run", kind: "warn", test: null };
+    const st = t[0].status;
+    return { state: "automated · " + st, kind: kindOf(st), test: t[0] };
+  }
+  function mark(v) {
+    const k = kindOf(v);
+    return k === "pass" ? "✅" : k === "fail" ? "❌" : "⏸";
+  }
+
+  // ---------- header ----------
+  const ticket = spec.ticket || (issuesDoc && issuesDoc.run) || "";
+  document.title = (ticket ? ticket + " " : "") + "STLC report";
+  document.getElementById("title").textContent = (ticket ? ticket + " · " : "") + "STLC run report";
+  const meta = [];
+  if (spec.sut) meta.push('SUT <a href="' + esc(spec.sut) + '">' + esc(spec.sut) + "</a>");
+  if (spec.sources && spec.sources.doc) meta.push("Spec doc <code>" + esc(spec.sources.doc) + "</code>");
+  if (spec.sources && spec.sources.jira) meta.push("Jira " + list([].concat(spec.sources.jira)));
+  if (results && results.stats && results.stats.startTime) meta.push("08 run " + esc(results.stats.startTime));
+  meta.push("Files: " + Object.keys(FILES).length);
+  document.getElementById("meta").innerHTML = meta.join(" · ");
+
+  // ---------- tabs ----------
+  const TABS = [];
+  function tab(id, label, count, render) { TABS.push({ id: id, label: label, count: count, render: render }); }
+
+  const GATES = [
+    { key: "requirements", step: "01", name: "Requirements" },
+    { key: "plan", step: "02", name: "Test plan" },
+    { key: "cases", step: "03 + 04", name: "Test cases + case judge" },
+    { key: "manual_check", step: "05", name: "Manual check (unsure cases)", optional: true },
+    { key: "tests", step: "06 + 07 + 08", name: "Automation + test judge + run" },
+    { key: "report_push", step: "10", name: "Report + Qase push" },
+    { key: "issues", step: "10", name: "Found issues review" }
+  ];
+
+  // Overview
+  tab("overview", "Overview", null, function () {
+    const nAuto = cases.filter(function (c) { return c.spec; }).length;
+    const m = { pass: 0, fail: 0, warn: 0, idle: 0 }, a = { pass: 0, fail: 0, warn: 0, idle: 0 };
+    cases.forEach(function (c) { m[kindOf(manualResult(c))]++; a[automationOf(c).kind]++; });
+    const issues = (issuesDoc && issuesDoc.issues) || [];
+    let h = '<div class="kpis">' +
+      kpi(acs.length, "acceptance criteria") + kpi(cases.length, "test cases") +
+      kpi(m.pass + " / " + m.fail, "05 manual match / mismatch") +
+      kpi(nAuto + " of " + cases.length, "cases automated") +
+      kpi(a.pass + " / " + a.fail, "08 automated passed / failed") +
+      kpi(issues.length, "bug candidates") + "</div>";
+
+    h += '<div class="panel"><h2>Gates</h2><div class="steps">' + GATES.map(function (g) {
+      const v = gates[g.key];
+      const st = v ? (v.approved ? "approved" : "declined") : g.optional ? "n/a" : "pending";
+      return '<div class="step"><div class="n">' + esc(g.step) + "</div><div>" + esc(g.name) + "</div>" +
+        badge(st, st === "approved" ? "pass" : st === "declined" ? "fail" : st === "n/a" ? "idle" : "warn") + "</div>";
+    }).join("") + "</div></div>";
+
+    h += '<div class="panel"><h2>Coverage</h2>' + table(["AC", "Text", "Cases", "Manual (05)", "Automated (08)"],
+      acs.map(function (ac) {
+        const cs = cases.filter(function (c) { return (c.covers || []).indexOf(ac.id) >= 0; });
+        return "<tr><td><code>" + esc(ac.id) + "</code></td><td>" + esc(ac.text) + "</td><td>" + list(cs.map(function (c) { return c.id; })) + "</td><td>" +
+          cs.map(function (c) { return mark(manualResult(c)); }).join(" ") + "</td><td>" +
+          cs.map(function (c) { const t = automationOf(c); return t.test ? mark(t.test.status) : "⏸"; }).join(" ") + "</td></tr>";
+      })) + "</div>";
+
+    if (FILES["report.md"]) {
+      const sum = FILES["report.md"].match(/##[^\n]*Summary[^\n]*\n([\s\S]*?)(?=\n## |$)/i);
+      if (sum) h += '<div class="panel"><h2>Summary (report.md)</h2>' + md(sum[1]) + "</div>";
+    }
+    return h;
+  });
+  function kpi(v, l) { return '<div class="kpi"><div class="v">' + esc(v) + '</div><div class="l">' + esc(l) + "</div></div>"; }
+
+  // Plan
+  tab("plan", "Plan", null, function () {
+    return FILES["plan.md"] ? '<div class="panel">' + md(FILES["plan.md"]) + "</div>" : '<div class="panel muted">No plan.md in this run.</div>';
+  });
+
+  // Gates
+  tab("gates", "Gates", Object.keys(gates).length, function () {
+    const known = GATES.map(function (g) { return g.key; });
+    const rows = GATES.concat(Object.keys(gates).filter(function (k) { return known.indexOf(k) < 0; }).map(function (k) { return { key: k, step: "", name: k }; }))
+      .map(function (g) {
+        const v = gates[g.key];
+        const st = v ? (v.approved ? "approved" : "declined") : g.optional ? "n/a" : "pending";
+        return "<tr><td>" + esc(g.step) + "</td><td><code>" + esc(g.key) + "</code><div class='muted'>" + esc(g.name) + "</div></td><td>" +
+          badge(st, st === "approved" ? "pass" : st === "declined" ? "fail" : st === "n/a" ? "idle" : "warn") + "</td><td>" +
+          esc(v && v.by) + "</td><td>" + esc(v && v.at) + "</td><td>" + esc(v && v.note) + "</td></tr>";
+      });
+    return '<div class="panel"><h2>Human approvals (gates.yaml)</h2>' + table(["Step", "Gate", "Status", "By", "At", "Note"], rows) + "</div>";
+  });
+
+  // Spec
+  tab("spec", "Spec", cases.length, function () {
+    let h = '<div class="panel"><h2>Acceptance criteria</h2>' + table(["ID", "Text", "Source"],
+      acs.map(function (ac) { return "<tr><td><code>" + esc(ac.id) + "</code></td><td>" + esc(ac.text) + "</td><td>" + esc(ac.source) + "</td></tr>"; })) + "</div>";
+    h += '<div class="panel"><h2>Out of scope</h2>' + ((spec.out_of_scope || []).length ? "<ul>" + spec.out_of_scope.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" : '<span class="muted">None</span>') + "</div>";
+    h += '<div class="panel"><h2>Questions</h2>' + table(["ID", "About", "Question", "Options", "Answer", "By"],
+      (spec.questions || []).map(function (q) {
+        return "<tr><td><code>" + esc(q.id) + "</code></td><td>" + list(q.about) + "</td><td>" + esc(q.text) + "</td><td><ul>" +
+          (q.options || []).map(function (o) { return "<li>" + (o === q.answer ? "<strong>" + esc(o) + "</strong>" : esc(o)) + "</li>"; }).join("") +
+          "</ul></td><td>" + esc(q.answer) + "</td><td>" + esc(q.answered_by) + "</td></tr>";
+      })) + "</div>";
+    h += "<h2>Test cases</h2>" + cases.map(function (c) {
+      const a = automationOf(c);
+      const known = ["id", "title", "covers", "blocked_by", "steps", "expected", "expected_source", "status", "spec", "execution", "qase_id"];
+      const extra = {};
+      Object.keys(c).forEach(function (k) { if (known.indexOf(k) < 0) extra[k] = c[k]; });
+      return "<details><summary><code>" + esc(c.id) + "</code> " + esc(c.title) + " " + auto(c.status) + " " + badge(a.state, a.kind) + "</summary><div class='body'>" +
+        '<dl class="kv"><dt>Covers</dt><dd>' + list(c.covers) + "</dd><dt>Blocked by</dt><dd>" + (list(c.blocked_by) || "—") +
+        "</dd><dt>Status</dt><dd>" + auto(c.status) + "</dd><dt>Automation</dt><dd>" + badge(a.state, a.kind) + (c.spec ? " <code>" + esc(c.spec) + "</code>" : "") +
+        "</dd><dt>Qase</dt><dd>" + esc(c.qase_id == null ? "—" : c.qase_id) + "</dd></dl>" +
+        "<h3>Steps</h3><ol>" + (c.steps || []).map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") + "</ol>" +
+        "<h3>Expected</h3><p>" + esc(c.expected) + ' <span class="muted">(source: ' + esc(c.expected_source) + ")</span></p>" +
+        (Object.keys(extra).length ? "<h3>Other fields</h3>" + kv(extra) : "") + "</div></details>";
+    }).join("");
+    return h;
+  });
+
+  // Results
+  tab("results", "Results", tests.length, function () {
+    const st = (results && results.stats) || {};
+    let h = "";
+    if (results && results.__error) h += '<div class="banner">results.json could not be parsed: ' + esc(results.__error) + "</div>";
+    if (results) h += '<div class="kpis">' + kpi(st.expected || 0, "08 passed") + kpi(st.unexpected || 0, "08 failed") +
+      kpi(st.flaky || 0, "flaky") + kpi(st.skipped || 0, "skipped") + kpi(fmtMs(st.duration), "duration") + "</div>";
+
+    h += '<div class="toolbar"><input id="rf" type="search" placeholder="Filter by case id or title" aria-label="Filter cases">' +
+      '<select id="rs" aria-label="Filter by result"><option value="">All results</option><option value="fail">Any mismatch or failure</option><option value="warn">Unsure or blocked</option><option value="pass">All passing</option></select></div>';
+    h += '<div class="panel">' + table(["Case", "Title", "05 result", "Confidence", "Automation status", "08 result", "Duration"],
+      cases.map(function (c, i) {
+        const e = c.execution || {}, a = automationOf(c);
+        const hc = e.human_check ? " <span class='muted'>(checked by " + esc(e.human_check.by) + ")</span>" : "";
+        const kinds = [kindOf(manualResult(c)), a.kind, kindOf(e.confidence)].join(" ");
+        return '<tr class="click" data-i="' + i + '" data-k="' + kinds + '" data-q="' + esc((c.id + " " + c.title).toLowerCase()) + '"><td><code>' + esc(c.id) + "</code></td><td>" + esc(c.title) + "</td><td>" +
+          auto(manualResult(c)) + hc + "</td><td>" + auto(e.confidence) + "</td><td>" + badge(a.state, a.kind) + "</td><td>" +
+          (a.test ? auto(a.test.status) : badge("—", "idle")) + "</td><td>" + esc(a.test ? fmtMs(a.test.duration) : "") + "</td></tr>";
+      })) + '<p class="muted">Click a row for the execution log and the Playwright error.</p></div>';
+
+    h += "<h2>Per case</h2>" + cases.map(function (c, i) {
+      const e = c.execution || {}, a = automationOf(c);
+      const log = e.log ? execSections[slug(String(e.log).split("#")[1] || c.id)] : execSections[slug(c.id)];
+      let b = "<h3>Expected</h3><p>" + esc(c.expected) + "</p>";
+      b += "<h3>05 manual run</h3>" + kv(e) + (log ? md(log.replace(/^## .+\n/, "")) : '<p class="muted">No section in execution.md.</p>');
+      b += "<h3>08 automated run</h3>";
+      if (a.test) {
+        const t = a.test;
+        b += '<dl class="kv"><dt>Test</dt><dd><code>' + esc(t.title) + "</code></dd><dt>File</dt><dd><code>" + esc(t.file) + ":" + esc(t.line) +
+          "</code></dd><dt>Project</dt><dd>" + esc(t.project) + "</dd><dt>Status</dt><dd>" + auto(t.status) + "</dd><dt>Retries</dt><dd>" + esc(t.retries) +
+          "</dd><dt>Started</dt><dd>" + esc(t.startTime) + "</dd><dt>Duration</dt><dd>" + esc(fmtMs(t.duration)) + "</dd>" +
+          (t.location ? "<dt>Error at</dt><dd><code>" + esc(t.location.file) + ":" + esc(t.location.line) + "</code></dd>" : "") + "</dl>" +
+          (t.error ? "<pre>" + esc(t.error) + "</pre>" : "") +
+          (t.attachments.length ? "<p>Attachments:</p><ul>" + t.attachments.map(function (x) { return "<li>" + esc(x.name) + " <code>" + esc(x.path || "") + "</code></li>"; }).join("") + "</ul>" : "");
+      } else b += '<p class="muted">' + esc(a.state) + "</p>";
+      return '<details id="case-' + i + '"><summary><code>' + esc(c.id) + "</code> " + esc(c.title) + " " + auto(manualResult(c)) + " " + badge(a.state, a.kind) + "</summary><div class='body'>" + b + "</div></details>";
+    }).join("");
+
+    const titles = cases.map(function (c) { return c.spec; });
+    const orphans = tests.filter(function (t) { return titles.indexOf(t.title) < 0; });
+    if (orphans.length) h += '<div class="panel"><h2>Tests not linked to a case</h2>' + table(["Test", "Status", "Error"],
+      orphans.map(function (t) { return "<tr><td><code>" + esc(t.title) + "</code></td><td>" + auto(t.status) + "</td><td><pre>" + esc(t.error) + "</pre></td></tr>"; })) + "</div>";
+    if (results && (results.errors || []).length) h += '<div class="panel"><h2>Run errors</h2>' + results.errors.map(function (e) { return "<pre>" + esc(stripAnsi(e.message || JSON.stringify(e))) + "</pre>"; }).join("") + "</div>";
+    if (!results) h += '<div class="panel muted">No results.json in this run.</div>';
+    return h;
+  });
+
+  // Verdicts
+  tab("verdicts", "Verdicts", verdictFiles.length, function () {
+    if (!verdictFiles.length) return '<div class="panel muted">No judge verdicts (phase 1 run).</div>';
+    return verdictFiles.map(function (f) {
+      const v = parseJson(f) || {};
+      const checks = v.checks || [];
+      const non = checks.filter(function (c) { return String(c.result).toUpperCase() !== "PASS"; });
+      const cnt = {};
+      checks.forEach(function (c) { cnt[c.result] = (cnt[c.result] || 0) + 1; });
+      const name = f.replace(/^verdicts\//, "").replace(/\.json$/, "");
+      const parts = name.split("-");
+      const head = "Step " + (v.step || parts[0]) + " · round " + (parts[1] || "?") + " (" + (v.step === "04" || parts[0] === "04" ? "case judge" : "test judge") + ")";
+      const row = function (c) {
+        return "<tr><td><code>" + esc(c.check) + "</code></td><td>" + esc(c.item) + "</td><td>" + auto(c.result) + "</td><td>" + esc(c.reason) +
+          (c.case_quote ? "<div class='muted'>case: “" + esc(c.case_quote) + "”</div>" : "") +
+          (c.source_quote ? "<div class='muted'>source: “" + esc(c.source_quote) + "”</div>" : "") + "</td></tr>";
+      };
+      return "<details" + (non.length ? " open" : "") + "><summary><strong>" + esc(head) + "</strong> " + auto(v.verdict) + ' <span class="muted">' +
+        Object.keys(cnt).map(function (k) { return esc(k) + " " + cnt[k]; }).join(" · ") + " · <code>" + esc(f) + "</code></span></summary><div class='body'>" +
+        (v.__error ? '<div class="banner">' + esc(v.__error) + "</div>" : "") +
+        "<h3>Non-PASS checks</h3>" + table(["Check", "Item", "Result", "Reason"], non.map(row)) +
+        "<details><summary>All " + checks.length + " checks</summary><div class='body'>" + table(["Check", "Item", "Result", "Reason"], checks.map(row)) + "</div></details>" +
+        (Object.keys(v).filter(function (k) { return ["run", "step", "verdict", "checks"].indexOf(k) < 0; }).length
+          ? "<h3>Other fields</h3>" + kv(Object.fromEntries(Object.entries(v).filter(function (e) { return ["run", "step", "verdict", "checks"].indexOf(e[0]) < 0; }))) : "") +
+        "</div></details>";
+    }).join("");
+  });
+
+  // Found issues
+  const issues = (issuesDoc && issuesDoc.issues) || [];
+  tab("issues", "Issues", issues.length, function () {
+    if (!issuesDoc) return '<div class="panel muted">No found_issues.json in this run yet.</div>';
+    if (!issues.length) return '<div class="panel muted">No bug candidates.</div>';
+    return '<div class="panel">' + table(["ID", "Title", "Cases", "Priority", "Status", "Jira"], issues.map(function (x) {
+      const j = x.jira || {};
+      return "<tr><td><code>" + esc(x.id) + "</code></td><td>" + esc(x.title) + "</td><td>" + list(x.cases) + "</td><td>" + esc(x.priority) + "</td><td>" +
+        auto(x.status) + "</td><td>" + (j.url ? '<a href="' + esc(j.url) + '">' + esc(j.key) + "</a>" : esc(j.key || "—")) + "</td></tr>";
+    })) + "</div>" + issues.map(function (x) {
+      return "<details><summary><code>" + esc(x.id) + "</code> " + esc(x.title) + " " + auto(x.status) + "</summary><div class='body'>" + kv(x) + "</div></details>";
+    }).join("");
+  });
+
+  // Files (every embedded file, rendered or raw)
+  tab("files", "Files", Object.keys(FILES).length, function () {
+    return Object.keys(FILES).sort().map(function (f) {
+      const body = /\.md$/.test(f) ? md(FILES[f]) : "<pre>" + esc(/\.json$/.test(f) ? pretty(FILES[f]) : FILES[f]) + "</pre>";
+      return "<details><summary><code>" + esc(f) + '</code> <span class="muted">' + FILES[f].length.toLocaleString() + " chars</span></summary><div class='body'>" + body + "</div></details>";
+    }).join("");
+  });
+  function pretty(s) { try { return JSON.stringify(JSON.parse(s), null, 2); } catch (e) { return s; } }
+
+  // ---------- render ----------
+  const tabsEl = document.getElementById("tabs"), mainEl = document.getElementById("main");
+  if (!libsOk) mainEl.insertAdjacentHTML("beforebegin", '<div style="max-width:1200px;margin:16px auto 0;padding:0 16px"><div class="banner">The YAML/Markdown libraries did not load (offline?). Only the Files tab and JSON-based parts are complete.</div></div>');
+  if (!Object.keys(FILES).length) mainEl.insertAdjacentHTML("beforebegin", '<div style="max-width:1200px;margin:16px auto 0;padding:0 16px"><div class="banner">No run files are embedded. This is the bare template; generate runs/&lt;T&gt;/report.html with the test-reporting skill.</div></div>');
+
+  TABS.forEach(function (t, i) {
+    const b = document.createElement("button");
+    b.type = "button"; b.setAttribute("role", "tab"); b.id = "tab-" + t.id; b.setAttribute("aria-controls", "panel-" + t.id);
+    b.innerHTML = esc(t.label) + (t.count != null ? '<span class="count">' + t.count + "</span>" : "");
+    b.addEventListener("click", function () { select(t.id); });
+    tabsEl.appendChild(b);
+    const s = document.createElement("section");
+    s.setAttribute("role", "tabpanel"); s.id = "panel-" + t.id; s.setAttribute("aria-labelledby", b.id);
+    try { s.innerHTML = t.render(); } catch (e) { s.innerHTML = '<div class="banner">Could not render this tab: ' + esc(e && e.message) + "</div>"; }
+    mainEl.appendChild(s);
+  });
+  function select(id) {
+    TABS.forEach(function (t) {
+      document.getElementById("tab-" + t.id).setAttribute("aria-selected", String(t.id === id));
+      document.getElementById("panel-" + t.id).classList.toggle("active", t.id === id);
+    });
+    try { history.replaceState(null, "", "#" + id); } catch (e) {}
+  }
+  const start = location.hash.slice(1);
+  select(TABS.some(function (t) { return t.id === start; }) ? start : "overview");
+
+  // results: row click → open the case's details; filters
+  const rp = document.getElementById("panel-results");
+  rp.addEventListener("click", function (ev) {
+    const tr = ev.target.closest("tr.click");
+    if (!tr) return;
+    const d = document.getElementById("case-" + tr.dataset.i);
+    if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  });
+  function filter() {
+    const q = (document.getElementById("rf").value || "").toLowerCase(), k = document.getElementById("rs").value;
+    rp.querySelectorAll("tr.click").forEach(function (tr) {
+      const kinds = tr.dataset.k.split(" ");
+      const okK = !k || (k === "pass" ? kinds.every(function (x) { return x === "pass"; }) : kinds.indexOf(k) >= 0);
+      tr.style.display = tr.dataset.q.indexOf(q) >= 0 && okK ? "" : "none";
+    });
+  }
+  const rf = document.getElementById("rf"), rs = document.getElementById("rs");
+  if (rf) { rf.addEventListener("input", filter); rs.addEventListener("change", filter); }
+
+  // theme toggle
+  document.getElementById("theme").addEventListener("click", function () {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+})();
+</script>
+</body>
+</html>
