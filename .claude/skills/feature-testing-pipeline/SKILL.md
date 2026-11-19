@@ -9,7 +9,7 @@ This skill **runs the whole flow**, step after step, in this session. It pauses 
 
 Rule: **agents create, judges check (read-only), the human reviews and decides.**
 
-Argument: only `T`, the ticket key (e.g. `KAN-27`; if none was given, ask). The SUT is known and fixed: `https://foodme-armanayvazyan-5cz9.onrender.com/`. Never ask the human for it.
+Argument: only `T`, the ticket key (e.g. `KAN-27`; if none was given, ask). The SUT is known and fixed: `https://foodme-tatevikpetrosyan.onrender.com/`. Never ask the human for it.
 
 ## Run directory `R = agentic-workflows/functional-testing/runs/<T>/`
 
