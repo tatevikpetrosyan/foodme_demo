@@ -24,6 +24,23 @@
         "JIRA_USERNAME": "${JIRA_USERNAME}",
         "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
       }
+    },
+      "glitchtip": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-glitchtip"
+      ],
+      "env": {
+        "GLITCHTIP_TOKEN": "${GLITCHTIP_TOKEN}",
+        "GLITCHTIP_ORGANIZATION": "ai-6v",
+        "GLITCHTIP_BASE_URL": "https://app.glitchtip.com"
+      }
+    },
+    "grafana": {
+      "type": "http",
+      "url": "https://foodme-monitoring-ipqd.onrender.com/mcp"
     }
+
   }
 }
